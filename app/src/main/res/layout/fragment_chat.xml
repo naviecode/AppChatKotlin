@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+
+    <!-- Ô nhập tìm kiếm người dùng -->
+    <EditText
+        android:id="@+id/searchUserEditText"
+        android:layout_width="match_parent"
+        android:layout_height="50dp"
+        android:background="@android:drawable/editbox_background"
+        android:drawableStart="@android:drawable/ic_menu_search"
+        android:drawablePadding="8dp"
+        android:hint="Nhập tên người dùng..."
+        android:padding="12dp"
+        android:textSize="16sp"
+        app:layout_constraintTop_toTopOf="parent"
+         />
+
+
+    <!-- Layout chứa danh sách người dùng -->
+    <LinearLayout
+        android:id="@+id/searchResultsLayout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:visibility="gone"
+        android:padding="8dp"
+        app:layout_constraintTop_toBottomOf="@id/searchUserEditText"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <!-- Tiêu đề danh sách bạn bè -->
+        <TextView
+            android:id="@+id/friendsTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Bạn bè"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:paddingTop="8dp"
+            android:paddingBottom="4dp" />
+
+        <!-- Danh sách người dùng đã kết bạn -->
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/friendsRecyclerView"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
+            tools:listitem="@layout/item_user" />
+
+        <!-- Tiêu đề danh sách người lạ -->
+        <TextView
+            android:id="@+id/strangersTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Người lạ"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:paddingTop="12dp"
+            android:paddingBottom="4dp" />
+
+        <!-- Danh sách người lạ (chưa kết bạn) -->
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/strangersRecyclerView"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
+            tools:listitem="@layout/item_user" />
+
+    </LinearLayout>
+
+
+
+    <!-- Danh sách người dùng đang hoạt động -->
+    <LinearLayout
+        android:id="@+id/listActiveUser"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:padding="8dp"
+        app:layout_constraintBottom_toTopOf="@id/recentChatsRecyclerView"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/searchUserEditText">
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="8dp"
+            android:gravity="center_horizontal">
+
+            <!-- Avatar + Trạng thái online -->
+            <FrameLayout
+                android:layout_width="48dp"
+                android:layout_height="48dp">
+
+                <!-- Avatar -->
+                <ImageView
+                    android:id="@+id/userAvatarCurrent"
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:src="@drawable/baseline_account_circle_24"
+                    android:scaleType="centerCrop" />
+
+                <!-- Hình tròn trạng thái online -->
+                <View
+                    android:id="@+id/statusIndicatorCurrent"
+                    android:layout_width="12dp"
+                    android:layout_height="12dp"
+                    android:background="@drawable/online_status"
+                    android:layout_gravity="bottom|end"
+                    android:layout_marginEnd="2dp"
+                    android:layout_marginBottom="2dp"/>
+            </FrameLayout>
+
+            <!-- Tên người dùng -->
+            <TextView
+                android:id="@+id/userNameCurrent"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Bạn"
+                android:textColor="@android:color/black"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+
+        </LinearLayout>
+
+
+
+        <!-- Danh sách người dùng đang hoạt động -->
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/activeUsersRecyclerView"
+            android:layout_width="match_parent"
+            android:layout_height="100dp"
+            android:clipToPadding="false"
+            android:orientation="horizontal"
+            app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"/>
+
+    </LinearLayout>
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/recentChatsRecyclerView"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:clipToPadding="false"
+        android:padding="8dp"
+        app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/listActiveUser"
+        app:layout_constraintVertical_bias="0.0"
+        tools:layout_editor_absoluteX="0dp" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>

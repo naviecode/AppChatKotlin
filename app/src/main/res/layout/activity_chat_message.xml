@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/white">
+
+    <!-- Thanh tiêu đề -->
+    <LinearLayout
+        android:id="@+id/chatHeader"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:orientation="horizontal"
+        android:padding="8dp"
+        android:gravity="center_vertical"
+        android:background="?attr/colorPrimary">
+        <!-- Nút Back -->
+
+        <ImageButton
+            android:id="@+id/backButton"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:src="@drawable/baseline_arrow_back_ios_24"
+            android:background="?attr/selectableItemBackground"
+            android:contentDescription="Quay lại"
+            android:layout_marginEnd="8dp"/>
+
+        <!-- Ảnh đại diện của user -->
+        <ImageView
+            android:id="@+id/userAvatar"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:src="@drawable/baseline_account_circle_24"
+            android:scaleType="centerCrop"
+            android:layout_marginEnd="8dp" />
+
+        <!-- Tên người dùng -->
+        <TextView
+            android:id="@+id/userName"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="User Name"
+            android:textColor="@android:color/white"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <!-- Danh sách tin nhắn -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/chatRecyclerView"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_below="@id/chatHeader"
+        android:layout_above="@id/messageInputLayout"
+        android:padding="8dp"
+        android:clipToPadding="false" />
+
+    <!-- Nhập tin nhắn -->
+    <LinearLayout
+        android:id="@+id/messageInputLayout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:padding="8dp"
+        android:orientation="horizontal"
+        android:background="@drawable/border_top"
+        android:elevation="4dp">
+
+        <!-- Ô nhập tin nhắn -->
+        <EditText
+            android:id="@+id/messageInput"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:hint="Nhập tin nhắn..."
+            android:padding="12dp"
+            android:textSize="16sp"/>
+
+        <!-- Nút gửi tin nhắn -->
+        <ImageButton
+            android:id="@+id/sendMessageButton"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:src="@drawable/icon_send_message"
+            android:background="?attr/selectableItemBackground"
+            android:contentDescription="Gửi tin nhắn"
+            />
+    </LinearLayout>
+
+</RelativeLayout>
