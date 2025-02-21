@@ -1,5 +1,6 @@
 package com.example.chatapp.ui.profile
 
+import android.app.Activity
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
@@ -9,18 +10,19 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
-import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.ViewModelProvider
 import com.bumptech.glide.Glide
+import com.bumptech.glide.request.RequestOptions
+import com.cloudinary.Cloudinary
+import com.cloudinary.utils.ObjectUtils
+import com.example.chatapp.R
 import com.example.chatapp.databinding.FragmentProfileBinding
 import com.example.chatapp.utils.FirebaseHelper
 import com.example.chatapp.viewmodels.UserViewModel
 import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.firestore.FirebaseFirestore
-import java.io.File
-import java.io.FileOutputStream
-import java.io.IOException
+import com.google.firebase.database.DatabaseReference
+import com.google.firebase.database.FirebaseDatabase
 
 class ProfileFragment : Fragment() {
 
@@ -29,7 +31,7 @@ class ProfileFragment : Fragment() {
     private val PICK_IMAGE_REQUEST = 1
     private var imageUri: Uri? = null
     private var userId = FirebaseAuth.getInstance().currentUser?.uid
-    private val firestore = FirebaseFirestore.getInstance().collection("users")
+    private val usersRef: DatabaseReference =  FirebaseDatabase.getInstance().getReference("users")
     private val firebaseHelper = FirebaseHelper()
 
     private lateinit var userViewModel: UserViewModel
@@ -64,7 +66,7 @@ class ProfileFragment : Fragment() {
         }
 
         // Tải ảnh đại diện nếu có
-        loadProfileImage()
+        loadImage()
 
         // Chọn ảnh từ thư viện
         binding.profileImageView.setOnClickListener {
@@ -126,63 +128,66 @@ class ProfileFragment : Fragment() {
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == PICK_IMAGE_REQUEST && resultCode == AppCompatActivity.RESULT_OK && data != null) {
-            imageUri = data.data
-            imageUri?.let { saveImageToInternalStorage(it) }  // Lưu vào Internal Storage
-        }
-    }
 
-    private fun saveImageToInternalStorage(uri: Uri) {
-        val fileName = "profile_image_$userId.jpg"
-
-        val file = File(requireContext().filesDir, fileName)
-
-        try {
-            requireContext().contentResolver.openInputStream(uri)?.use { inputStream ->
-                FileOutputStream(file).use { outputStream ->
-                    inputStream.copyTo(outputStream)
-                }
-            }
-            saveImagePath(file.absolutePath) // Lưu đường dẫn vào Firestore
-        } catch (e: IOException) {
-            Toast.makeText(requireContext(), "Lỗi lưu ảnh: ${e.message}", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    private fun saveImagePath(filePath: String) {
-
-        userId?.let {
-            firestore.document(it).update("profileImagePath", filePath)
-                .addOnSuccessListener {
-                    Log.d("FirestoreUpdate", "Ảnh cập nhật thành công!")
-                    Toast.makeText(requireContext(), "Ảnh cập nhật thành công!", Toast.LENGTH_SHORT).show()
-                    loadImage(filePath)
-                }
-                .addOnFailureListener { e ->
-                    Log.e("FirestoreUpdate", "Lỗi lưu đường dẫn: ${e.message}")
-                    Toast.makeText(requireContext(), "Lỗi lưu đường dẫn: ${e.message}", Toast.LENGTH_SHORT).show()
-                }
-        }
-    }
-
-    private fun loadProfileImage() {
-        userId?.let {
-            firestore.document(it).get().addOnSuccessListener { document ->
-                document.getString("profileImagePath")?.let { path ->
-                    loadImage(path)
+        if (requestCode == PICK_IMAGE_REQUEST && resultCode == Activity.RESULT_OK && data != null) {
+            val selectedImageUri = data.data
+            if (selectedImageUri != null) {
+                uploadImageToCloudinary(selectedImageUri) { imageUrl ->
+                    if (imageUrl != null) {
+                        Log.d("Cloudinary", "Uploaded Image URL: $imageUrl")
+                        loadImage()
+                    } else {
+                        Log.e("Cloudinary", "Upload failed")
+                    }
                 }
             }
         }
     }
 
-    private fun loadImage(filePath: String) {
-        val file = File(filePath)
-        if (file.exists()) {
-            Glide.with(this).load(file).into(binding.profileImageView)
-        } else {
-            Toast.makeText(requireContext(), "Không tìm thấy ảnh", Toast.LENGTH_SHORT).show()
+    private fun uploadImageToCloudinary(imageUri: Uri, callback: (String?) -> Unit) {
+        val currentUserId = userId ?: return
+        val cloudName = "db4jiiw1w"
+        val apiKey = "898543479459721"
+        val apiSecret = "zkMPsLuGg_GqTsnf8qyEsbDkEQ0"
+
+        val cloudinary = Cloudinary("cloudinary://$apiKey:$apiSecret@$cloudName")
+
+        val inputStream = requireContext().contentResolver.openInputStream(imageUri)
+
+        // Chuyển ảnh thành byte array
+        val byteArray = inputStream?.readBytes()
+        val uploadThread = Thread {
+            try {
+                val uploadResult = cloudinary.uploader().upload(byteArray, ObjectUtils.emptyMap())
+                val imageUrl = uploadResult["url"] as String
+                firebaseHelper.saveImageUser(currentUserId, imageUrl){ successs, imagepath ->
+                    if(successs){
+                       callback(imagepath)
+                    }else{
+                        callback(null)
+                    }
+                }
+
+            } catch (e: Exception) {
+                e.printStackTrace()
+                callback(null) // Upload thất bại
+            }
+        }
+
+        uploadThread.start()
+    }
+
+
+    private fun loadImage() {
+        firebaseHelper.getImageUser(userId){imageUrl ->
+            Glide.with(this).load(imageUrl)
+                .apply(RequestOptions.circleCropTransform())
+                .placeholder(R.drawable.user_default_avatar)
+                .error(R.drawable.user_default_avatar)
+                .into(binding.profileImageView)
         }
     }
+
     private fun updateUI() {
         if (userId == FirebaseAuth.getInstance().currentUser?.uid) {
             binding.friendActionButton.visibility = View.GONE

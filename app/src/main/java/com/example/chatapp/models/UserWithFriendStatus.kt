@@ -5,5 +5,5 @@ data class UserWithFriendStatus(
     val userName: String,
     val email: String,
     val isFriend: Boolean,
-    val isHeader: Boolean = false
+    val profileImage: String = ""
 )

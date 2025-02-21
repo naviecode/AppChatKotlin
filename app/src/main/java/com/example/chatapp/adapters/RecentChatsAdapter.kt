@@ -7,6 +7,7 @@ import android.widget.ImageView
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
+import com.bumptech.glide.request.RequestOptions
 import com.example.chatapp.R
 import com.example.chatapp.models.RecentChat
 import java.text.SimpleDateFormat
@@ -46,7 +47,8 @@ class RecentChatsAdapter(
 
         Glide.with(holder.itemView.context)
             .load(chat.otherUserImage)
-            .placeholder(R.drawable.baseline_account_circle_24)
+            .apply(RequestOptions.circleCropTransform())
+            .placeholder(R.drawable.user_default_avatar)
             .into(holder.userImage)
 
         holder.itemView.setOnClickListener { onChatClicked(chat) }

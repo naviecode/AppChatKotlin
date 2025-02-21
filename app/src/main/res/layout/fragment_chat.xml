@@ -100,7 +100,7 @@
 
                 <!-- Avatar -->
                 <ImageView
-                    android:id="@+id/userAvatarCurrent"
+                    android:id="@+id/userAvatarActiveCurrent"
                     android:layout_width="48dp"
                     android:layout_height="48dp"
                     android:src="@drawable/baseline_account_circle_24"
@@ -119,7 +119,7 @@
 
             <!-- Tên người dùng -->
             <TextView
-                android:id="@+id/userNameCurrent"
+                android:id="@+id/userNameActiveCurrent"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Bạn"

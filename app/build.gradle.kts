@@ -62,5 +62,7 @@ dependencies {
     implementation(libs.circleimageview)
     implementation(libs.glide)
     implementation(libs.lifecycle.process)
+    implementation(libs.cloudinary)
+    implementation(libs.okhttp)
 
 }

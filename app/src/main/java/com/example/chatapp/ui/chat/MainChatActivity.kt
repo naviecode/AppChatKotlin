@@ -9,6 +9,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.ProcessLifecycleOwner
 import com.bumptech.glide.Glide
+import com.bumptech.glide.request.RequestOptions
 import com.example.chatapp.R
 import com.example.chatapp.databinding.ActivityMainChatBinding
 import com.example.chatapp.firebase.AuthManager
@@ -38,9 +39,8 @@ class MainChatActivity : AppCompatActivity() {
         resetInactivityTimer()
 
         firebaseHelper.listenForNotifications { notification ->
-            if(notification.senderId != currentUser){
-                Toast.makeText(this,"Bạn có lời mời kết bạn", Toast.LENGTH_SHORT).show()
-
+            if(notification.senderId != currentUser && notification.senderId != ""){
+                Toast.makeText(this,notification.message, Toast.LENGTH_SHORT).show()
             }
         }
 
@@ -59,24 +59,32 @@ class MainChatActivity : AppCompatActivity() {
     private fun setupEventClickNavBot(){
 
         binding.icon1.setOnClickListener {
+            binding.chatTitle.text = "Đoạn Chat"
             replaceFragment(ChatFragment())
         }
 
         binding.icon2.setOnClickListener {
+            binding.chatTitle.text = "Lời mời kết bạn"
             replaceFragment(FriendRequestFragment())
         }
 
         binding.icon3.setOnClickListener {
+            binding.chatTitle.text = "Thông tin người dùng"
             replaceFragment(ProfileFragment())
         }
     }
 
     private fun setupProfileImage() {
-        Glide.with(this)
-            .load("")
-            .placeholder(R.drawable.baseline_account_circle_24)
-            .error(R.drawable.baseline_account_circle_24)
-            .into(binding.profileImage)
+
+        firebaseHelper.getImageUser(currentUser) {imageUrl ->
+            Glide.with(this)
+                .load(imageUrl)
+                .apply(RequestOptions.circleCropTransform())
+                .placeholder(R.drawable.user_default_avatar)
+                .error(R.drawable.user_default_avatar)
+                .into(binding.profileImage)
+        }
+
 
         binding.profileImage.setOnClickListener {
             // Hiển thị menu với các tùy chọn đổi mật khẩu và đăng xuất

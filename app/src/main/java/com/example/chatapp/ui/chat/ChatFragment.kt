@@ -11,6 +11,8 @@ import androidx.fragment.app.replace
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
+import com.bumptech.glide.Glide
+import com.bumptech.glide.request.RequestOptions
 import com.example.chatapp.R
 import com.example.chatapp.adapters.ActiveUsersAdapter
 import com.example.chatapp.adapters.RecentChatsAdapter
@@ -33,7 +35,7 @@ class ChatFragment : Fragment() {
     private lateinit var friendsAdapter: UserSearchAdapter
     private lateinit var strangersAdapter: UserSearchAdapter
     private val firebaseHelper = FirebaseHelper()
-    private val currentUser = FirebaseAuth.getInstance().currentUser
+    private var userId = FirebaseAuth.getInstance().currentUser?.uid
     private val viewModel: UserSearchViewModel by viewModels()
 
     override fun onCreateView(
@@ -48,6 +50,13 @@ class ChatFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
+        firebaseHelper.getImageUser(userId){imageUrl->
+            Glide.with(this).load(imageUrl)
+                .apply(RequestOptions.circleCropTransform())
+                .placeholder(R.drawable.user_default_avatar)
+                .error(R.drawable.user_default_avatar)
+                .into(binding.userAvatarActiveCurrent)
+        }
         setupRecyclerViews()
         loadActiveUsers()
         loadRecentChats()

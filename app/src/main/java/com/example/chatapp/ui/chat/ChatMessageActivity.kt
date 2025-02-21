@@ -1,13 +1,23 @@
 package com.example.chatapp.ui.chat
 
+import android.content.Context
 import android.content.Intent
 import android.os.Bundle
+import android.util.Log
+import android.view.View
+import android.widget.EditText
+import android.widget.PopupMenu
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.LinearLayoutManager
+import com.bumptech.glide.Glide
+import com.bumptech.glide.request.RequestOptions
+import com.example.chatapp.R
 import com.example.chatapp.adapters.ChatAdapter
 import com.example.chatapp.databinding.ActivityChatMessageBinding
+import com.example.chatapp.models.ChatMessage
 import com.example.chatapp.utils.FirebaseHelper
 import com.example.chatapp.viewmodels.ChatViewModel
 import com.example.chatapp.viewmodels.UserViewModel
@@ -36,8 +46,13 @@ class ChatMessageActivity : AppCompatActivity() {
         userViewModel.fetchUser(receiverId)
         userViewModel.user.observe(this) { user ->
             binding.userName.text = user.name
+            Glide.with(this)
+                .load(user.profileImage)
+                .apply(RequestOptions.circleCropTransform())
+                .placeholder(R.drawable.user_default_avatar)
+                .error(R.drawable.user_default_avatar)
+                .into(binding.userAvatar)
         }
-
 
         setupRecyclerView()
         loadMessage()
@@ -45,9 +60,56 @@ class ChatMessageActivity : AppCompatActivity() {
     }
 
     private fun setupRecyclerView(){
-        chatAdapter = ChatAdapter(mutableListOf(),mutableListOf(), currentUserId)
+        chatAdapter = ChatAdapter(mutableListOf(),mutableListOf(), currentUserId){textView, chatmessage ->
+            if(chatmessage.senderId == currentUserId){
+                showMessageOptions(textView,this, chatmessage)
+            }
+        }
         binding.chatRecyclerView.layoutManager = LinearLayoutManager(this)
         binding.chatRecyclerView.adapter = chatAdapter
+    }
+
+    private fun showMessageOptions(anchor:View, context: Context, message: ChatMessage) {
+        val popupMenu = PopupMenu(context, anchor)
+        popupMenu.menu.add("Chỉnh sửa")
+        popupMenu.menu.add("Xóa")
+
+        popupMenu.setOnMenuItemClickListener { item ->
+            when (item.title) {
+                "Chỉnh sửa" -> editMessage(context, message)
+                "Xóa" -> deleteMessage(context, message)
+            }
+            true
+        }
+
+        popupMenu.show()
+    }
+
+    private fun editMessage(context: Context, message: ChatMessage) {
+        val editText = EditText(context)
+        editText.setText(message.text)
+
+        AlertDialog.Builder(context)
+            .setTitle("Chỉnh sửa tin nhắn")
+            .setView(editText)
+            .setPositiveButton("Lưu") { _, _ ->
+                val newText = editText.text.toString()
+                firebaseHelper.updateMessageText(message.chatMessageId, newText, currentUserId)
+            }
+            .setNegativeButton("Hủy", null)
+            .show()
+    }
+
+    // Hàm xử lý xóa tin nhắn
+    private fun deleteMessage(context: Context, message: ChatMessage) {
+        AlertDialog.Builder(context)
+            .setTitle("Xác nhận xóa")
+            .setMessage("Bạn có chắc muốn xóa tin nhắn này?")
+            .setPositiveButton("Xóa") { _, _ ->
+                firebaseHelper.deleteMessage(message.chatMessageId, currentUserId)
+            }
+            .setNegativeButton("Hủy", null)
+            .show()
     }
 
     private fun loadMessage(){
@@ -79,10 +141,7 @@ class ChatMessageActivity : AppCompatActivity() {
         }
 
         binding.backButton.setOnClickListener(){
-            val intent = Intent(this, MainChatActivity::class.java).apply {
-                //truyền field
-            }
-            startActivity(intent)
+            finish()
         }
 
     }
