@@ -35,7 +35,7 @@ class FriendRequestFragment : Fragment() {
     }
     override fun onDestroyView() {
         super.onDestroyView()
-        _binding = null  // Tránh memory leak
+        _binding = null
     }
     private fun setupRecyclerViews(){
         friendRequestAdapter = FriendRequestAdapter(emptyList(),
@@ -60,7 +60,7 @@ class FriendRequestFragment : Fragment() {
         firebaseHelper.acceptFriendRequest(friendRequest.senderId) { success, message ->
             Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
             if (success) {
-                loadFriendRequest() // Cập nhật danh sách sau khi chấp nhận
+                loadFriendRequest()
             }
         }
     }

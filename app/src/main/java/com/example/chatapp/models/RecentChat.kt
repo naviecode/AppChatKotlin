@@ -8,6 +8,7 @@ data class RecentChat(
     val formattedTimestamp: Long,
     val otherUserImage: String = "",
     val isStatus: Boolean = false,
+    val group: Boolean = false
 ){
     // Constructor không tham số
     constructor() : this("", "", "", "", 0)

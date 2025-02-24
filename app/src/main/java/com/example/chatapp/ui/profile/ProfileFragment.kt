@@ -1,6 +1,7 @@
 package com.example.chatapp.ui.profile
 
 import android.app.Activity
+import android.app.AlertDialog
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
@@ -9,6 +10,7 @@ import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.EditText
 import android.widget.Toast
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.ViewModelProvider
@@ -65,6 +67,10 @@ class ProfileFragment : Fragment() {
             }
         }
 
+        firebaseHelper.countFriends{result ->
+            binding.friendCountTextView.text = "$result bạn bè"
+        }
+
         // Tải ảnh đại diện nếu có
         loadImage()
 
@@ -73,7 +79,12 @@ class ProfileFragment : Fragment() {
             openGallery()
         }
 
+        binding.editNameButton.setOnClickListener{
+            showEditNamePopup()
+        }
+
         loadFriendRequest()
+
         updateUI()
 
     }
@@ -189,9 +200,13 @@ class ProfileFragment : Fragment() {
     }
 
     private fun updateUI() {
+        val binding = _binding ?: return
+
         if (userId == FirebaseAuth.getInstance().currentUser?.uid) {
             binding.friendActionButton.visibility = View.GONE
             binding.friendStatusTextView.visibility = View.GONE
+            binding.editNameButton.visibility = View.VISIBLE
+            binding.friendCountTextView .visibility = View.VISIBLE
             return
         }
 
@@ -217,4 +232,37 @@ class ProfileFragment : Fragment() {
             }
         }
     }
+    private fun showEditNamePopup() {
+        val builder = AlertDialog.Builder(requireContext())
+        val inflater = layoutInflater
+        val dialogView = inflater.inflate(R.layout.edit_name_popup, null)
+        val editNameEditText = dialogView.findViewById<EditText>(R.id.editNameEditText)
+
+        builder.setView(dialogView)
+            .setTitle("Đổi tên")
+            .setPositiveButton("Lưu") { dialog, _ ->
+                val newName = editNameEditText.text.toString().trim()
+                if (newName.isNotEmpty()) {
+                    // Cập nhật TextView hiển thị tên người dùng
+                    binding.userNameTextView.text = newName
+                    // (Tùy chọn) Cập nhật tên mới lên Firebase hoặc lưu lại thông tin người dùng
+                    firebaseHelper.updateUserName(userId, newName){sucess->
+                        if(sucess){
+                            Toast.makeText(requireContext(), "Cập nhập tên thành công", Toast.LENGTH_SHORT).show()
+                        }else{
+                            Toast.makeText(requireContext(), "Cập nhập tên thất bại", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+
+
+                } else {
+                    Toast.makeText(requireContext(), "Tên không được để trống", Toast.LENGTH_SHORT).show()
+                }
+            }
+            .setNegativeButton("Hủy") { dialog, _ ->
+                dialog.dismiss()
+            }
+        builder.create().show()
+    }
+
 }

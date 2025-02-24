@@ -17,7 +17,6 @@ import com.google.firebase.database.DatabaseError
 import com.google.firebase.database.DatabaseReference
 import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.database.ValueEventListener
-import com.google.firebase.firestore.FirebaseFirestore
 import java.util.Date
 
 class FirebaseHelper {
@@ -86,6 +85,21 @@ class FirebaseHelper {
         })
     }
 
+    fun countFriends(callback: (Int) -> Unit) {
+        val currentUserId = auth.currentUser?.uid ?: return
+
+        friendsRef.child(currentUserId).addListenerForSingleValueEvent(object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val friendCount = snapshot.childrenCount.toInt() // Lấy số lượng bạn bè
+                callback(friendCount) // Trả về kết quả
+            }
+
+            override fun onCancelled(error: DatabaseError) {
+                callback(0) // Nếu có lỗi, trả về 0
+            }
+        })
+    }
+
 
     fun getRecentChats(callback: (List<RecentChat>) -> Unit) {
         val currentUserId = auth.currentUser?.uid ?: return
@@ -110,17 +124,27 @@ class FirebaseHelper {
                     for (userId in userIds) {
                         usersRef.child(userId).addValueEventListener(object : ValueEventListener {
                             override fun onDataChange(userSnapshot: DataSnapshot) {
+
                                 val userName = userSnapshot.child("name").getValue(String::class.java) ?: "Người dùng"
                                 val userImage = userSnapshot.child("profileImage").getValue(String::class.java) ?: ""
                                 val status = userSnapshot.child("status").getValue(Boolean::class.java) ?: false
 
-                                // Cập nhật userName vào danh sách recentChats
-                                recentChats.forEach { chat ->
-                                    if (chat.otherUserId == userId) {
-                                        updatedChats.add(
-                                            chat.copy(otherUserName = userName, otherUserImage = userImage, isStatus = status)
-                                        )
+                                recentChats.forEach { recentChat ->
+                                    if(recentChat.group){
+                                        if (recentChat.otherUserId == userId) {
+                                            updatedChats.add(
+                                                recentChat.copy(otherUserName = recentChat.otherUserName, otherUserImage = recentChat.otherUserImage, isStatus = true)
+                                            )
+                                        }
                                     }
+                                    else{
+                                        if (recentChat.otherUserId == userId) {
+                                            updatedChats.add(
+                                                recentChat.copy(otherUserName = userName, otherUserImage = userImage, isStatus = status)
+                                            )
+                                        }
+                                    }
+
                                 }
 
                                 usersProcessed++
@@ -190,8 +214,59 @@ class FirebaseHelper {
     }
 
 
-
     fun getUsersWithFriendStatus(callback: (List<UserWithFriendStatus>) -> Unit) {
+        val currentUserId = auth.currentUser?.uid ?: return
+        val friendsRef = FirebaseDatabase.getInstance().getReference("friends").child(currentUserId)
+
+        friendsRef.addValueEventListener(object : ValueEventListener {
+            override fun onDataChange(friendsSnapshot: DataSnapshot) {
+                val usersList = mutableListOf<UserWithFriendStatus>()
+                val friendIds = mutableSetOf<String>()
+                var processedCount = 0
+
+                // Lấy danh sách ID bạn bè
+                for (friend in friendsSnapshot.children) {
+                    friend.key?.let { friendIds.add(it) }
+                }
+
+                if (friendIds.isEmpty()) {
+                    callback(emptyList())
+                    return
+                }
+
+                for (friendId in friendIds) {
+                    usersRef.child(friendId).addListenerForSingleValueEvent(object : ValueEventListener {
+                        override fun onDataChange(userSnapshot: DataSnapshot) {
+                            val user = userSnapshot.getValue(User::class.java)
+                            if (user != null) {
+                                usersList.add(UserWithFriendStatus(user.id, user.name, user.email, true, user.profileImage))
+                            }
+                            processedCount++
+                            if (processedCount == friendIds.size) {
+                                callback(usersList) // Gửi danh sách cập nhật khi lấy đủ dữ liệu
+                            }
+                        }
+
+                        override fun onCancelled(error: DatabaseError) {
+                            processedCount++
+                            if (processedCount == friendIds.size) {
+                                callback(usersList) // Gửi danh sách ngay cả khi có lỗi
+                            }
+                        }
+                    })
+                }
+            }
+
+            override fun onCancelled(error: DatabaseError) {
+                callback(emptyList()) // Trả về danh sách rỗng nếu có lỗi
+            }
+        })
+    }
+
+
+
+
+    fun getUsers(callback: (List<UserWithFriendStatus>) -> Unit) {
         val currentUserId = auth.currentUser?.uid ?: return
         val friendsRef = FirebaseDatabase.getInstance().getReference("friends").child(currentUserId)
 
@@ -374,9 +449,7 @@ class FirebaseHelper {
 
                                         checkExistingChat(senderId, currentUserId) { chatId ->
                                             if (chatId == null) {
-                                                createNewChat(senderId, currentUserId) { newChatId ->
-
-                                                }
+                                                createNewChat(senderId, currentUserId) { newChatId -> }
                                             }
                                         }
                                         callback(true, "Bạn đã chấp nhận kết bạn")
@@ -434,7 +507,7 @@ class FirebaseHelper {
 
     private fun createNewChat(userId1: String, userId2: String, callback: (String) -> Unit) {
         val chatId = chatsRef.push().key!!
-        val newChat = Chat(chatId, Date(), "")
+        val newChat = Chat(chatId,"", Date(), "", "", "" ,false)
 
         chatsRef.child(chatId).setValue(newChat).addOnSuccessListener {
             val senderMember = ChatMember(
@@ -456,6 +529,144 @@ class FirebaseHelper {
             Log.e("FirebaseHelper", "Lỗi khi tạo nhóm chat")
         }
     }
+
+    fun createGroupChat(users: List<UserWithFriendStatus>, callback: (Boolean) -> Unit) {
+        val currentUserId = auth.currentUser?.uid ?: return
+
+        if (users.isEmpty()) {
+            Log.e("FirebaseHelper", "Không có thành viên nào để tạo chat")
+            callback(false)
+        }
+        val chatId = chatsRef.push().key!!
+        val newChat = Chat(chatId,"Nhóm chat", Date(),currentUserId, currentUserId, "",true)
+
+        chatsRef.child(chatId).setValue(newChat).addOnSuccessListener {
+            val listUser = mutableListOf<UserWithFriendStatus>();
+
+            listUser.add(UserWithFriendStatus(userId = currentUserId, "Current", "test", true, ""))
+            for(user in users) {
+                listUser.add(user)
+            }
+            for (user in listUser) {
+                val chatMemberId = chatMemberRef.push().key!!
+                val chatMember = ChatMember(
+                    chatMemberId = chatMemberId,
+                    chatId = chatId,
+                    userId = user.userId
+                )
+                chatMemberRef.child(chatMemberId).setValue(chatMember)
+
+                if(user.userId == currentUserId){
+                    val receiverRecentChat = mapOf(
+                        "chatId" to chatId,
+                        "otherUserId" to user.userId,
+                        "otherUserName" to "Nhóm chat",
+                        "lastMessage" to "Bạn vừa tạo một nhóm chat",
+                        "formattedTimestamp" to System.currentTimeMillis(),
+                        "group" to true,
+                        "otherUserImage" to "https://res.cloudinary.com/db4jiiw1w/image/upload/v1740040957/group_chat_r8gdo9.jpg"
+                    )
+                    recentChat.child(user.userId).child(chatId).setValue(receiverRecentChat)
+                }else{
+                    val receiverRecentChat = mapOf(
+                        "chatId" to chatId,
+                        "otherUserId" to user.userId,
+                        "otherUserName" to "Nhóm chat",
+                        "lastMessage" to "Bạn vừa được add vào một nhóm chat",
+                        "formattedTimestamp" to System.currentTimeMillis(),
+                        "group" to true,
+                        "otherUserImage" to "https://res.cloudinary.com/db4jiiw1w/image/upload/v1740040957/group_chat_r8gdo9.jpg"
+                    )
+                    recentChat.child(user.userId).child(chatId).setValue(receiverRecentChat)
+                }
+
+
+            }
+            callback(true)
+
+        }.addOnFailureListener { exception ->
+            callback(false)
+            Log.e("FirebaseHelper", "Lỗi khi tạo nhóm chat: ${exception.message}")
+        }
+    }
+
+    fun addGroupChat(users: List<UserWithFriendStatus>,chatId: String, callback: (Boolean, String) -> Unit) {
+        if (users.isEmpty()) {
+            Log.e("FirebaseHelper", "Không có thành viên nào để tạo chat")
+            callback(false, "")
+        }
+
+        chatMemberRef.get().addOnSuccessListener { snapshot ->
+            if (!snapshot.exists()) {
+                callback(false,"")
+                return@addOnSuccessListener
+            }
+            val existingUserIds = snapshot.children
+                .mapNotNull { it.getValue(ChatMember::class.java) }
+                .filter { it.chatId == chatId }
+                .map { it.userId }
+
+            val existingUserNames = users.filter { it.userId in existingUserIds }
+                .joinToString(", ") { it.userName }
+
+            val newUsers = users.filter { it.userId !in existingUserIds }
+
+            if (newUsers.isEmpty()) {
+                Log.e("FirebaseHelper", "Tất cả người dùng đã có trong nhóm")
+                callback(false, existingUserNames)
+                return@addOnSuccessListener
+            }
+            chatsRef.child(chatId).addListenerForSingleValueEvent(object : ValueEventListener {
+                override fun onDataChange(snapshot: DataSnapshot) {
+                    val chatInfo = snapshot.getValue(Chat::class.java)
+                    if(chatInfo != null){
+                        for (user in newUsers) {
+                            val chatMemberId = chatMemberRef.push().key!!
+                            val chatMember = ChatMember(
+                                chatMemberId = chatMemberId,
+                                chatId = chatId,
+                                userId = user.userId
+                            )
+                            chatMemberRef.child(chatMemberId).setValue(chatMember)
+
+                            val receiverRecentChat = mapOf(
+                                "chatId" to chatId,
+                                "otherUserId" to user.userId,
+                                "otherUserName" to chatInfo.chatName,
+                                "lastMessage" to "Bạn vừa được add vào một nhóm chat",
+                                "formattedTimestamp" to System.currentTimeMillis(),
+                                "group" to true,
+                                "otherUserImage" to "https://res.cloudinary.com/db4jiiw1w/image/upload/v1740040957/group_chat_r8gdo9.jpg"
+                            )
+                            recentChat.child(user.userId).child(chatId).setValue(receiverRecentChat)
+                        }
+                        for(oldUser in existingUserIds){
+                            val receiverRecentChat = mapOf(
+                                "chatId" to chatId,
+                                "otherUserId" to oldUser,
+                                "otherUserName" to chatInfo.chatName,
+                                "lastMessage" to "Nhóm chat có ${newUsers.size} thành viên mới",
+                                "formattedTimestamp" to System.currentTimeMillis(),
+                                "group" to true,
+                                "otherUserImage" to "https://res.cloudinary.com/db4jiiw1w/image/upload/v1740040957/group_chat_r8gdo9.jpg"
+                            )
+                            recentChat.child(oldUser).child(chatId).updateChildren(receiverRecentChat)
+                        }
+                        callback(true, "")
+                    }
+
+                }
+
+                override fun onCancelled(error: DatabaseError) {
+                    callback(false, "")
+                }
+            })
+        }.addOnFailureListener {
+            Log.e("FirebaseHelper", "Lỗi khi kiểm tra thành viên nhóm: ${it.message}")
+            callback(false, "")
+        }
+    }
+
 
 
 
@@ -548,17 +759,7 @@ class FirebaseHelper {
                             }
                         }
 
-                        // Gửi tin nhắn
-                        val messageId = chatMessageRef.push().key!!
-                        val chatMessage = ChatMessage(
-                            chatMessageId = messageId,
-                            chatId = chatId,
-                            senderId = senderId,
-                            text = messageText,
-                            timestamp = System.currentTimeMillis(),
-                            senderAvatarUrl = ""
-                        )
-                        chatMessageRef.child(messageId).setValue(chatMessage)
+
 
                         usersRef.child(receiverId).child("name").get()
                             .addOnSuccessListener { receiverSnapshot ->
@@ -568,7 +769,8 @@ class FirebaseHelper {
                                     "otherUserId" to receiverId,
                                     "otherUserName" to receiverName,
                                     "lastMessage" to messageText,
-                                    "formattedTimestamp" to System.currentTimeMillis()
+                                    "formattedTimestamp" to System.currentTimeMillis(),
+                                    "group" to false
                                 )
 
                                 recentChat.child(senderId).child(chatId).get().addOnSuccessListener { snapshot ->
@@ -591,8 +793,23 @@ class FirebaseHelper {
                                     "otherUserId" to senderId,
                                     "otherUserName" to senderName,
                                     "lastMessage" to messageText,
-                                    "formattedTimestamp" to System.currentTimeMillis()
+                                    "formattedTimestamp" to System.currentTimeMillis(),
+                                    "group" to false
                                 )
+
+                                // Gửi tin nhắn
+                                val messageId = chatMessageRef.push().key!!
+                                val chatMessage = ChatMessage(
+                                    chatMessageId = messageId,
+                                    chatId = chatId,
+                                    senderId = senderId,
+                                    senderName = senderName,
+                                    text = messageText,
+                                    timestamp = System.currentTimeMillis(),
+                                    senderAvatarUrl = ""
+                                )
+                                chatMessageRef.child(messageId).setValue(chatMessage)
+
 
                                 // Cập nhật vào Firebase Realtime Database
 
@@ -617,6 +834,72 @@ class FirebaseHelper {
             }
         })
     }
+
+    fun sendMessageGroup(senderId: String?, chatId: String, messageText: String) {
+        if (senderId == null) return
+
+        // Tạo tin nhắn mới
+        val messageId = chatMessageRef.push().key!!
+        usersRef.child(senderId).get()
+            .addOnSuccessListener { snapshot ->
+                val user = snapshot.getValue(User::class.java)
+                if (user != null) {
+                    val chatMessage = ChatMessage(
+                        chatMessageId = messageId,
+                        chatId = chatId,
+                        senderId = senderId,
+                        senderName = user.name,
+                        text = messageText,
+                        timestamp = System.currentTimeMillis(),
+                        senderAvatarUrl = ""
+                    )
+                    // Lưu tin nhắn vào Firebase
+                    chatMessageRef.child(messageId).setValue(chatMessage)
+                }
+            }
+
+
+        chatMemberRef.orderByChild("chatId").equalTo(chatId).addListenerForSingleValueEvent(object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                for (child in snapshot.children) {
+                    val chatMember = child.getValue(ChatMember::class.java)
+
+                    if(chatMember != null){
+                        usersRef.child(chatMember.userId).child("name").get()
+                            .addOnSuccessListener { receiverSnapshot ->
+                                if(chatMember.userId != senderId){
+                                    sendNotification(chatMember.userId, "Bạn nhận được tin nhắn từ nhóm chat", "message")
+                                }
+
+                                val senderRecentChat = mapOf(
+                                    "chatId" to chatId,
+                                    "otherUserId" to chatMember.userId,
+                                    "otherUserName" to "Nhóm chat",
+                                    "lastMessage" to messageText,
+                                    "formattedTimestamp" to System.currentTimeMillis(),
+                                    "group" to true,
+                                    "isStatus" to true
+                                )
+
+                                // Cập nhật recent chat cho sender
+                                recentChat.child(chatMember.userId).child(chatId).get().addOnSuccessListener { snapshot ->
+                                    if (!snapshot.exists()) {
+                                        recentChat.child(chatMember.userId).child(chatId).setValue(senderRecentChat)
+                                    } else {
+                                        recentChat.child(chatMember.userId).child(chatId).updateChildren(senderRecentChat)
+                                    }
+                                }
+                            }
+                    }
+
+                }
+            }
+            override fun onCancelled(error: DatabaseError) {
+                Log.e("FirebaseError", "Lỗi truy vấn: ${error.message}")
+            }
+        })
+    }
+
 
     fun updateMessageText(chatMessageId: String, newText: String, currentId: String?) {
         chatMessageRef.child(chatMessageId).get().addOnSuccessListener { snapshot ->
@@ -689,54 +972,20 @@ class FirebaseHelper {
                         }
 
                         if (chatId != null) {
-                            // Lắng nghe tin nhắn của chatId này
-                            chatMessageRef.orderByChild("chatId").equalTo(chatId)
-                                .addChildEventListener(object : ChildEventListener {
-                                    override fun onChildAdded(snapshot: DataSnapshot, previousChildName: String?) {
-                                        val chatMessage = snapshot.getValue(ChatMessage::class.java)
-                                        if (chatMessage != null) {
-                                            usersRef.child(chatMessage.senderId).get()
-                                                .addOnSuccessListener { userSnapshot ->
-                                                    val user = userSnapshot.getValue(User::class.java)
-                                                    val senderImage = user?.profileImage ?: ""
-                                                    chatMessage.senderAvatarUrl = senderImage
-                                                    onMessageReceived(chatMessage)
-                                                }
-                                                .addOnFailureListener {
-                                                    Log.e("FirebaseHelper", "Không thể lấy thông tin người dùng: ${it.message}")
-                                                    onMessageReceived(chatMessage)
-                                                }
+                            // Kiểm tra số lượng thành viên trong chatId
+                            chatMemberRef.orderByChild("chatId").equalTo(chatId)
+                                .addListenerForSingleValueEvent(object : ValueEventListener {
+                                    override fun onDataChange(chatMemberSnapshot: DataSnapshot) {
+                                        if (chatMemberSnapshot.childrenCount == 2L) {
+                                            // Chỉ lắng nghe tin nhắn nếu chat có đúng 2 user
+                                            listenToChatMessages(chatId, onMessageReceived, onUpdateMessage, onDeleteMessage)
+                                        } else {
+                                            Log.e("FirebaseHelper", "ChatId $chatId có nhiều hơn 2 user, bỏ qua.")
                                         }
                                     }
-
-                                    override fun onChildChanged(snapshot: DataSnapshot, previousChildName: String?) {
-                                        val updatedMessage = snapshot.getValue(ChatMessage::class.java)
-                                        if (updatedMessage != null) {
-                                            usersRef.child(updatedMessage.senderId).get()
-                                                .addOnSuccessListener { userSnapshot ->
-                                                    val user = userSnapshot.getValue(User::class.java)
-                                                    val senderImage = user?.profileImage ?: ""
-                                                    updatedMessage.senderAvatarUrl = senderImage
-                                                    onUpdateMessage(updatedMessage)
-                                                }
-                                                .addOnFailureListener {
-                                                    Log.e("FirebaseHelper", "Không thể lấy thông tin người dùng: ${it.message}")
-                                                    onUpdateMessage(updatedMessage)
-                                                }
-                                        }
-                                    }
-
-                                    override fun onChildRemoved(snapshot: DataSnapshot) {
-                                        val removedMessage = snapshot.getValue(ChatMessage::class.java)
-                                        if (removedMessage != null) {
-                                            onDeleteMessage(removedMessage) // Gửi tin nhắn đã bị xóa về ViewModel
-                                        }
-                                    }
-
-                                    override fun onChildMoved(snapshot: DataSnapshot, previousChildName: String?) {}
 
                                     override fun onCancelled(error: DatabaseError) {
-                                        Log.e("FirebaseHelper", "Lỗi khi lắng nghe tin nhắn mới: ${error.message}")
+                                        Log.e("FirebaseHelper", "Lỗi khi kiểm tra số lượng thành viên: ${error.message}")
                                     }
                                 })
                         } else {
@@ -757,8 +1006,295 @@ class FirebaseHelper {
     }
 
 
+    private fun listenToChatMessages(chatId: String,
+                                     onMessageReceived: (ChatMessage) -> Unit,
+                                     onUpdateMessage: (ChatMessage) -> Unit,
+                                     onDeleteMessage: (ChatMessage) -> Unit) {
+        chatMessageRef.orderByChild("chatId").equalTo(chatId)
+            .addChildEventListener(object : ChildEventListener {
+                override fun onChildAdded(snapshot: DataSnapshot, previousChildName: String?) {
+                    val chatMessage = snapshot.getValue(ChatMessage::class.java)
+                    if (chatMessage != null) {
+                        usersRef.child(chatMessage.senderId).get()
+                            .addOnSuccessListener { userSnapshot ->
+                                val user = userSnapshot.getValue(User::class.java)
+                                val senderImage = user?.profileImage ?: ""
+                                val senderName = user?.name ?: ""
+                                chatMessage.senderName = senderName
+                                chatMessage.senderAvatarUrl = senderImage
+                                onMessageReceived(chatMessage)
+                            }
+                            .addOnFailureListener {
+                                Log.e("FirebaseHelper", "Không thể lấy thông tin người dùng: ${it.message}")
+                                onMessageReceived(chatMessage)
+                            }
+                    }
+                }
+
+                override fun onChildChanged(snapshot: DataSnapshot, previousChildName: String?) {
+                    val updatedMessage = snapshot.getValue(ChatMessage::class.java)
+                    if (updatedMessage != null) {
+                        usersRef.child(updatedMessage.senderId).get()
+                            .addOnSuccessListener { userSnapshot ->
+                                val user = userSnapshot.getValue(User::class.java)
+                                val senderImage = user?.profileImage ?: ""
+                                val senderName = user?.name ?: ""
+                                updatedMessage.senderName = senderName
+                                updatedMessage.senderAvatarUrl = senderImage
+                                onUpdateMessage(updatedMessage)
+                            }
+                            .addOnFailureListener {
+                                Log.e("FirebaseHelper", "Không thể lấy thông tin người dùng: ${it.message}")
+                                onUpdateMessage(updatedMessage)
+                            }
+                    }
+                }
+
+                override fun onChildRemoved(snapshot: DataSnapshot) {
+                    val removedMessage = snapshot.getValue(ChatMessage::class.java)
+                    if (removedMessage != null) {
+                        onDeleteMessage(removedMessage) // Gửi tin nhắn đã bị xóa về ViewModel
+                    }
+                }
+
+                override fun onChildMoved(snapshot: DataSnapshot, previousChildName: String?) {}
+
+                override fun onCancelled(error: DatabaseError) {
+                    Log.e("FirebaseHelper", "Lỗi khi lắng nghe tin nhắn mới: ${error.message}")
+                }
+            })
+    }
+//    fun listenForMessages(
+//        senderId: String?,
+//        receiverId: String,
+//        onMessageReceived: (ChatMessage) -> Unit,
+//        onUpdateMessage: (ChatMessage) -> Unit,
+//        onDeleteMessage: (ChatMessage) -> Unit
+//    ) {
+//        if (senderId == null) {
+//            Log.e("FirebaseHelper", "senderId không hợp lệ")
+//            return
+//        }
+//
+//        getChatIdBetweenUsers(senderId, receiverId) { chatId ->
+//            if (chatId != null) {
+//                listenToAllMessages(chatId, onMessageReceived, onUpdateMessage, onDeleteMessage)
+//            } else {
+//                Log.e("FirebaseHelper", "Không tìm thấy chatId giữa $senderId và $receiverId")
+//            }
+//        }
+//    }
+
+    // Lấy chatId giữa senderId và receiverId
+//    private fun getChatIdBetweenUsers(senderId: String, receiverId: String, callback: (String?) -> Unit) {
+//        val senderChatIds = mutableSetOf<String>()
+//
+//        // Lấy danh sách chatId của senderId
+//        val senderQuery = chatMemberRef.orderByChild("userId").equalTo(senderId)
+//        senderQuery.addListenerForSingleValueEvent(object : ValueEventListener {
+//            override fun onDataChange(senderSnapshot: DataSnapshot) {
+//                for (chat in senderSnapshot.children) {
+//                    val chatMember = chat.getValue(ChatMember::class.java)
+//                    if (chatMember != null) {
+//                        senderChatIds.add(chatMember.chatId)
+//                    }
+//                }
+//
+//                if (senderChatIds.isEmpty()) {
+//                    Log.e("FirebaseHelper", "Người gửi chưa tham gia chat nào")
+//                    callback(null)
+//                    return
+//                }
+//
+//                // Lấy danh sách chatId của receiverId
+//                val receiverQuery = chatMemberRef.orderByChild("userId").equalTo(receiverId)
+//                receiverQuery.addListenerForSingleValueEvent(object : ValueEventListener {
+//                    override fun onDataChange(receiverSnapshot: DataSnapshot) {
+//                        var chatId: String? = null
+//
+//                        for (chat in receiverSnapshot.children) {
+//                            val chatMember = chat.getValue(ChatMember::class.java)
+//                            if (chatMember != null && senderChatIds.contains(chatMember.chatId)) {
+//                                chatId = chatMember.chatId
+//                                break
+//                            }
+//                        }
+//
+//                        if (chatId != null) {
+//                            // Kiểm tra số lượng thành viên trong chatId
+//                            chatMemberRef.orderByChild("chatId").equalTo(chatId)
+//                                .addListenerForSingleValueEvent(object : ValueEventListener {
+//                                    override fun onDataChange(chatMemberSnapshot: DataSnapshot) {
+//                                        if (chatMemberSnapshot.childrenCount == 2L) {
+//                                            callback(chatId)
+//                                        } else {
+//                                            Log.e("FirebaseHelper", "ChatId $chatId có nhiều hơn 2 user, bỏ qua.")
+//                                            callback(null)
+//                                        }
+//                                    }
+//
+//                                    override fun onCancelled(error: DatabaseError) {
+//                                        Log.e("FirebaseHelper", "Lỗi khi kiểm tra số lượng thành viên: ${error.message}")
+//                                        callback(null)
+//                                    }
+//                                })
+//                        } else {
+//                            Log.e("FirebaseHelper", "Không tìm thấy chatId giữa $senderId và $receiverId")
+//                            callback(null)
+//                        }
+//                    }
+//
+//                    override fun onCancelled(error: DatabaseError) {
+//                        Log.e("FirebaseHelper", "Lỗi khi truy vấn receiverId: ${error.message}")
+//                        callback(null)
+//                    }
+//                })
+//            }
+//
+//            override fun onCancelled(error: DatabaseError) {
+//                Log.e("FirebaseHelper", "Lỗi khi truy vấn senderId: ${error.message}")
+//                callback(null)
+//            }
+//        })
+//    }
+
+    // Lắng nghe toàn bộ tin nhắn cũ + tin nhắn mới
+//    fun listenToAllMessages(
+//        chatId: String,
+//        onMessageReceived: (ChatMessage) -> Unit,
+//        onUpdateMessage: (ChatMessage) -> Unit,
+//        onDeleteMessage: (ChatMessage) -> Unit
+//    ) {
+//        chatMessageRef.orderByChild("chatId").equalTo(chatId)
+//            .addListenerForSingleValueEvent(object : ValueEventListener {
+//                override fun onDataChange(snapshot: DataSnapshot) {
+//                    for (messageSnapshot in snapshot.children) {
+//                        val chatMessage = messageSnapshot.getValue(ChatMessage::class.java)
+//                        if (chatMessage != null) {
+//                            fetchUserProfile(chatMessage, onMessageReceived)
+//                        }
+//                    }
+//                    // Sau khi tải tin nhắn cũ, bắt đầu lắng nghe tin nhắn mới
+//                    listenToChatMessages(chatId, onMessageReceived, onUpdateMessage, onDeleteMessage)
+//                }
+//
+//                override fun onCancelled(error: DatabaseError) {
+//                    Log.e("FirebaseHelper", "Lỗi khi tải tin nhắn cũ: ${error.message}")
+//                }
+//            })
+//    }
+
+    // Lắng nghe tin nhắn mới, cập nhật, xóa
+//    private fun listenToChatMessages(
+//        chatId: String,
+//        onMessageReceived: (ChatMessage) -> Unit,
+//        onUpdateMessage: (ChatMessage) -> Unit,
+//        onDeleteMessage: (ChatMessage) -> Unit
+//    ) {
+//        chatMessageRef.orderByChild("chatId").equalTo(chatId)
+//            .addChildEventListener(object : ChildEventListener {
+//                override fun onChildAdded(snapshot: DataSnapshot, previousChildName: String?) {
+//                    val chatMessage = snapshot.getValue(ChatMessage::class.java)
+//                    if (chatMessage != null) {
+//                        fetchUserProfile(chatMessage, onMessageReceived)
+//                    }
+//                }
+//
+//                override fun onChildChanged(snapshot: DataSnapshot, previousChildName: String?) {
+//                    val updatedMessage = snapshot.getValue(ChatMessage::class.java)
+//                    if (updatedMessage != null) {
+//                        fetchUserProfile(updatedMessage, onUpdateMessage)
+//                    }
+//                }
+//
+//                override fun onChildRemoved(snapshot: DataSnapshot) {
+//                    val removedMessage = snapshot.getValue(ChatMessage::class.java)
+//                    if (removedMessage != null) {
+//                        onDeleteMessage(removedMessage)
+//                    }
+//                }
+//
+//                override fun onChildMoved(snapshot: DataSnapshot, previousChildName: String?) {}
+//
+//                override fun onCancelled(error: DatabaseError) {
+//                    Log.e("FirebaseHelper", "Lỗi khi lắng nghe tin nhắn mới: ${error.message}")
+//                }
+//            })
+//    }
+//
+//
+//    // Lấy thông tin người gửi (avatar)
+//    private fun fetchUserProfile(chatMessage: ChatMessage, callback: (ChatMessage) -> Unit) {
+//        usersRef.child(chatMessage.senderId).get()
+//            .addOnSuccessListener { userSnapshot ->
+//                val user = userSnapshot.getValue(User::class.java)
+//                chatMessage.senderAvatarUrl = user?.profileImage ?: ""
+//                callback(chatMessage)
+//            }
+//            .addOnFailureListener {
+//                Log.e("FirebaseHelper", "Không thể lấy thông tin người dùng: ${it.message}")
+//                callback(chatMessage)
+//            }
+//    }
+
+
+    fun listenForMessagesGroup(chatId:String ,
+                                 onMessageReceived: (ChatMessage) -> Unit,
+                                 onUpdateMessage: (ChatMessage) -> Unit,
+                                 onDeleteMessage: (ChatMessage) -> Unit){
+        chatMessageRef.orderByChild("chatId").equalTo(chatId)
+            .addChildEventListener(object : ChildEventListener {
+                override fun onChildAdded(snapshot: DataSnapshot, previousChildName: String?) {
+                    val chatMessage = snapshot.getValue(ChatMessage::class.java)
+                    if (chatMessage != null) {
+                        usersRef.child(chatMessage.senderId).get()
+                            .addOnSuccessListener { userSnapshot ->
+                                val user = userSnapshot.getValue(User::class.java)
+                                val senderImage = user?.profileImage ?: ""
+                                chatMessage.senderAvatarUrl = senderImage
+                                onMessageReceived(chatMessage)
+                            }
+                            .addOnFailureListener {
+                                Log.e("FirebaseHelper", "Không thể lấy thông tin người dùng: ${it.message}")
+                                onMessageReceived(chatMessage)
+                            }
+                    }
+                }
+
+                override fun onChildChanged(snapshot: DataSnapshot, previousChildName: String?) {
+                    val updatedMessage = snapshot.getValue(ChatMessage::class.java)
+                    if (updatedMessage != null) {
+                        usersRef.child(updatedMessage.senderId).get()
+                            .addOnSuccessListener { userSnapshot ->
+                                val user = userSnapshot.getValue(User::class.java)
+                                val senderImage = user?.profileImage ?: ""
+                                updatedMessage.senderAvatarUrl = senderImage
+                                onUpdateMessage(updatedMessage)
+                            }
+                            .addOnFailureListener {
+                                Log.e("FirebaseHelper", "Không thể lấy thông tin người dùng: ${it.message}")
+                                onUpdateMessage(updatedMessage)
+                            }
+                    }
+                }
+
+                override fun onChildRemoved(snapshot: DataSnapshot) {
+                    val removedMessage = snapshot.getValue(ChatMessage::class.java)
+                    if (removedMessage != null) {
+                        onDeleteMessage(removedMessage) // Gửi tin nhắn đã bị xóa về ViewModel
+                    }
+                }
+
+                override fun onChildMoved(snapshot: DataSnapshot, previousChildName: String?) {}
+
+                override fun onCancelled(error: DatabaseError) {
+                    Log.e("FirebaseHelper", "Lỗi khi lắng nghe tin nhắn mới: ${error.message}")
+                }
+            })
+    }
+
     fun getOldMessages(senderId: String?, receiverId: String, callback: (List<ChatMessage>) -> Unit) {
-        // Tìm chatId chứa cả senderId và receiverId
+        // Tìm chatId chứa senderId
         chatMemberRef.orderByChild("userId").equalTo(senderId)
             .addListenerForSingleValueEvent(object : ValueEventListener {
                 override fun onDataChange(snapshot: DataSnapshot) {
@@ -771,19 +1307,27 @@ class FirebaseHelper {
                             chatMemberRef.orderByChild("chatId").equalTo(chatMember.chatId)
                                 .addListenerForSingleValueEvent(object : ValueEventListener {
                                     override fun onDataChange(receiverSnapshot: DataSnapshot) {
+                                        var memberCount = 0
+                                        var isValidChat = false
+
                                         for (receiverChat in receiverSnapshot.children) {
                                             val receiverMember = receiverChat.getValue(ChatMember::class.java)
-                                            if (receiverMember != null && receiverMember.userId == receiverId) {
-                                                chatId = receiverMember.chatId
-                                                break
+                                            if (receiverMember != null) {
+                                                memberCount++
+
+                                                // Nếu tìm thấy receiverId trong chatId này thì đánh dấu hợp lệ
+                                                if (receiverMember.userId == receiverId) {
+                                                    isValidChat = true
+                                                }
                                             }
                                         }
 
-                                        if (chatId != null) {
-                                            // Lấy danh sách tin nhắn trừ tin nhắn mới nhất
+                                        // Nếu chatId có đúng 2 người thì lấy tin nhắn
+                                        if (isValidChat && memberCount == 2) {
+                                            chatId = chatMember.chatId
                                             fetchOldMessages(chatId!!, callback)
                                         } else {
-                                            callback(emptyList()) // Không tìm thấy cuộc trò chuyện
+                                            callback(emptyList()) // Không phải chat cá nhân
                                         }
                                     }
 
@@ -801,6 +1345,7 @@ class FirebaseHelper {
             })
     }
 
+
     fun saveImageUser(userId:String, imagePath: String, callback: (Boolean, String?) -> Unit){
         usersRef.child(userId).child("profileImage").setValue(imagePath)
             .addOnSuccessListener { callback(true, imagePath) }
@@ -815,7 +1360,7 @@ class FirebaseHelper {
         }
     }
 
-    private fun fetchOldMessages(chatId: String, callback: (List<ChatMessage>) -> Unit) {
+    fun fetchOldMessages(chatId: String, callback: (List<ChatMessage>) -> Unit) {
         chatMessageRef.orderByChild("chatId").equalTo(chatId)
             .addListenerForSingleValueEvent(object : ValueEventListener {
                 override fun onDataChange(snapshot: DataSnapshot) {
@@ -839,7 +1384,6 @@ class FirebaseHelper {
                     }
                     // Loại bỏ tin nhắn mới nhất
                     if (messages.isNotEmpty()) {
-
                         messages.sortBy { it.timestamp }
                         messages.removeAt(messages.size - 1)
                     }
@@ -851,4 +1395,194 @@ class FirebaseHelper {
                 }
             })
     }
+    fun getChatInfo(chatId: String, callback: (Chat?) -> Unit) {
+        chatsRef.child(chatId).addListenerForSingleValueEvent(object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val chatInfo = snapshot.getValue(Chat::class.java)
+                callback(chatInfo)
+            }
+
+            override fun onCancelled(error: DatabaseError) {
+                callback(null)
+            }
+        })
+    }
+
+    fun updateUserName(userId: String?, newName: String, callback: (Boolean) -> Unit) {
+        if(userId == null) return
+
+        val userRef = usersRef.child(userId)
+
+        userRef.child("name").setValue(newName)
+            .addOnSuccessListener {
+                callback(true) // Thành công
+            }
+            .addOnFailureListener {
+                callback(false) // Thất bại
+            }
+    }
+
+    fun updateChatName(chatId: String, newChatName: String, callback:(Boolean) -> Unit) {
+        val chatRef = chatsRef.child(chatId)
+
+        chatRef.child("chatName").setValue(newChatName)
+            .addOnSuccessListener {
+                chatMemberRef.orderByChild("chatId").equalTo(chatId).addListenerForSingleValueEvent(object : ValueEventListener {
+                    override fun onDataChange(snapshot: DataSnapshot) {
+                        for (child in snapshot.children) {
+                            val chatMember = child.getValue(ChatMember::class.java)
+
+                            if(chatMember != null){
+                                usersRef.child(chatMember.userId).child("name").get()
+                                    .addOnSuccessListener { receiverSnapshot ->
+                                        val senderRecentChat = mapOf(
+                                            "chatId" to chatId,
+                                            "otherUserId" to chatMember.userId,
+                                            "otherUserName" to newChatName,
+                                            "lastMessage" to "Tên nhóm đã được thay đổi",
+                                            "formattedTimestamp" to System.currentTimeMillis(),
+                                            "group" to true,
+                                            "isStatus" to true
+                                        )
+
+                                        // Cập nhật recent chat cho sender
+                                        recentChat.child(chatMember.userId).child(chatId).get().addOnSuccessListener { snapshot ->
+                                            if (!snapshot.exists()) {
+                                                recentChat.child(chatMember.userId).child(chatId).setValue(senderRecentChat)
+                                            } else {
+                                                recentChat.child(chatMember.userId).child(chatId).updateChildren(senderRecentChat)
+                                            }
+                                        }
+                                    }
+                            }
+
+                        }
+                        callback(true)
+                    }
+                    override fun onCancelled(error: DatabaseError) {
+                        Log.e("FirebaseError", "Lỗi truy vấn: ${error.message}")
+                        callback(false)
+                    }
+                })
+                callback(true)
+
+            }
+            .addOnFailureListener {
+                callback(false)
+            }
+    }
+
+    fun leaveGroup(chatId: String, userId: String?, callback: (Boolean) -> Unit) {
+        chatMemberRef.get().addOnSuccessListener { snapshot ->
+            var isMemberRemoved = false
+
+            for (child in snapshot.children) {
+                val chatMember = child.getValue(ChatMember::class.java)
+
+                if (chatMember != null && chatMember.chatId == chatId && chatMember.userId == userId) {
+                    child.ref.removeValue()
+                        .addOnSuccessListener {
+                            isMemberRemoved = true
+                            updateRecentChatOnLeave(chatId, userId)
+                            callback(true)
+                        }
+                        .addOnFailureListener {
+                            callback(false)
+                        }
+                    break
+                }
+            }
+
+            if (!isMemberRemoved) {
+                callback(false)
+            }
+        }.addOnFailureListener {
+            Log.e("FirebaseError", "Lỗi truy vấn: ${it.message}")
+            callback(false)
+        }
+    }
+
+
+    private fun updateRecentChatOnLeave(chatId: String, userId: String) {
+        // Xóa recent chat của user đã rời nhóm
+        recentChat.child(userId).child(chatId).removeValue()
+        usersRef.child(userId).get()
+            .addOnSuccessListener { snapshot ->
+                val user = snapshot.getValue(User::class.java)
+                if (user != null) {
+                    // Cập nhật tin nhắn hệ thống cho các thành viên còn lại
+                    chatMemberRef.get().addOnSuccessListener { snapshot ->
+                        for (child in snapshot.children) {
+                            val chatMember = child.getValue(ChatMember::class.java)
+
+                            if (chatMember != null && chatMember.chatId == chatId && chatMember.userId != userId) {
+                                val recentUpdate = mapOf(
+                                    "chatId" to chatId,
+                                    "otherUserId" to chatMember.userId,
+                                    "otherUserName" to "Nhóm",
+                                    "lastMessage" to "${user.name} đã rời khỏi nhóm",
+                                    "formattedTimestamp" to System.currentTimeMillis(),
+                                    "group" to true,
+                                    "isStatus" to true
+                                )
+                                recentChat.child(chatMember.userId).child(chatId).updateChildren(recentUpdate)
+                            }
+                        }
+                    }.addOnFailureListener {
+                        Log.e("FirebaseError", "Lỗi cập nhật Recent Chat: ${it.message}")
+                    }
+                }
+            }
+    }
+
+    fun deleteGroup(chatId: String, callback: (Boolean) -> Unit) {
+        chatMemberRef.get().addOnSuccessListener { snapshot ->
+            val memberIds = mutableListOf<String>()
+
+            for (child in snapshot.children) {
+                val chatMember = child.getValue(ChatMember::class.java)
+                if (chatMember != null && chatMember.chatId == chatId) {
+                    memberIds.add(chatMember.userId)
+                    child.ref.removeValue() // Xóa thành viên khỏi nhóm
+                }
+            }
+
+            if (memberIds.isEmpty()) {
+                callback(false) // Không có thành viên nào, không thể xóa nhóm
+                return@addOnSuccessListener
+            }
+
+            // Xóa toàn bộ tin nhắn trong nhóm từ bảng `chats/{chatId}`
+            chatsRef.child(chatId).removeValue()
+                .addOnSuccessListener {
+                    // Xóa recent chat của tất cả thành viên
+                    for (userId in memberIds) {
+                        recentChat.child(userId).child(chatId).removeValue()
+                    }
+
+                    // Xóa luôn thông tin nhóm khỏi bảng `chatMemberRef`
+                    chatMemberRef.orderByChild("chatId").equalTo(chatId)
+                        .addListenerForSingleValueEvent(object : ValueEventListener {
+                            override fun onDataChange(snapshot: DataSnapshot) {
+                                for (child in snapshot.children) {
+                                    child.ref.removeValue()
+                                }
+                                callback(true) // Xóa thành công
+                            }
+
+                            override fun onCancelled(error: DatabaseError) {
+                                Log.e("FirebaseError", "Lỗi khi xóa thành viên nhóm: ${error.message}")
+                                callback(false)
+                            }
+                        })
+                }
+                .addOnFailureListener {
+                    callback(false)
+                }
+        }.addOnFailureListener {
+            Log.e("FirebaseError", "Lỗi truy vấn: ${it.message}")
+            callback(false)
+        }
+    }
+
 }

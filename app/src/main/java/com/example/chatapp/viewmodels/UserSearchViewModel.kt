@@ -44,7 +44,7 @@ class UserSearchViewModel : ViewModel() {
     private suspend fun searchUsers(query: String): List<UserWithFriendStatus> {
         delay(500)
         return suspendCoroutine { continuation ->
-            firebaseHelper.getUsersWithFriendStatus { users ->
+            firebaseHelper.getUsers { users ->
                 val filteredUsers = users.filter { it.userName.contains(query, ignoreCase = true) }
                 continuation.resume(filteredUsers)
             }

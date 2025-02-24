@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:id="@+id/renameGroup"
+        android:title="Đổi tên nhóm"
+        android:icon="@drawable/ic_add_friend"/>
+    <item
+        android:id="@+id/addMember"
+        android:title="Thêm thành viên"
+        android:icon="@drawable/ic_add_friend"/>
+    <item
+        android:id="@+id/deleteGroup"
+        android:title="Xóa nhóm"
+        android:icon="@drawable/ic_add_friend"/>
+    <item
+        android:id="@+id/leaveGroup"
+        android:title="Rời nhóm"
+        android:icon="@drawable/ic_add_friend"/>
+</menu>

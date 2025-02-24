@@ -1,0 +1,25 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:padding="8dp">
+
+    <TextView
+        android:id="@+id/userName"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:text="Tên người dùng"
+        android:textSize="16sp"
+        android:padding="8dp"/>
+
+    <ImageButton
+        android:id="@+id/addUserButton"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:src="@drawable/add"
+        android:background="?attr/selectableItemBackground"
+        android:contentDescription="Thêm người dùng"/>
+
+
+</LinearLayout>

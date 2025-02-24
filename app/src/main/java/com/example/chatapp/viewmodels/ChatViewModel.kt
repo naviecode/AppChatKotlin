@@ -5,7 +5,6 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import com.example.chatapp.models.ChatMessage
 import com.example.chatapp.utils.FirebaseHelper
-import com.google.firebase.messaging.remoteMessage
 
 class ChatViewModel : ViewModel()  {
     private val firebaseHelper = FirebaseHelper()
@@ -22,13 +21,28 @@ class ChatViewModel : ViewModel()  {
             onDeleteMessage = {message -> removeMessage(message)}
         )
     }
+
+    fun startListeningGroup(chatId:String) {
+        firebaseHelper.listenForMessagesGroup(chatId,
+            onMessageReceived =  { message -> addMessage(message)},
+            onUpdateMessage = {message -> updateMessage(message)},
+            onDeleteMessage = {message -> removeMessage(message)}
+        )
+    }
+
     fun fetchOldMessages(senderId: String?, receiverId: String) {
         firebaseHelper.getOldMessages(senderId, receiverId) { messages ->
             _oldMessages.postValue(messages)
         }
     }
 
-    private  fun addMessage(addMessage: ChatMessage){
+    fun fetchOldMessagesGroup(chatId:String) {
+        firebaseHelper.fetchOldMessages(chatId) { messages ->
+            _oldMessages.postValue(messages)
+        }
+    }
+
+    private fun addMessage(addMessage: ChatMessage){
         val currentList = _messages.value.orEmpty().toMutableList()
         currentList.add(addMessage)
         _messages.postValue(currentList)

@@ -40,7 +40,7 @@ class ActiveUsersAdapter(
         Glide.with(holder.itemView.context)
             .load(user.profileImage)
             .apply(RequestOptions.circleCropTransform())
-            .placeholder(R.drawable.baseline_account_circle_24)
+            .placeholder(R.drawable.user_default_avatar)
             .into(holder.userImage)
 
         holder.itemView.setOnClickListener{onUserClicked(user)}

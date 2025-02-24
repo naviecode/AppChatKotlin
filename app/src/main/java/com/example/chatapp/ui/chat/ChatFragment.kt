@@ -18,6 +18,7 @@ import com.example.chatapp.adapters.ActiveUsersAdapter
 import com.example.chatapp.adapters.RecentChatsAdapter
 import com.example.chatapp.adapters.UserSearchAdapter
 import com.example.chatapp.databinding.FragmentChatBinding
+import com.example.chatapp.models.Chat
 import com.example.chatapp.models.User
 import com.example.chatapp.models.UserWithFriendStatus
 import com.example.chatapp.ui.profile.ProfileFragment
@@ -85,11 +86,11 @@ class ChatFragment : Fragment() {
         binding.strangersRecyclerView.adapter = strangersAdapter
 
         activeUsersAdapter = ActiveUsersAdapter(emptyList()) {user ->
-            startChat(user)
+            startChat(user, "")
         }
 
         recentChatsAdapter = RecentChatsAdapter(emptyList()){recentChat ->
-            startChat(User(recentChat.otherUserId, recentChat.otherUserName, profileImage =  recentChat.otherUserImage))
+            startChat(User(recentChat.otherUserId, recentChat.otherUserName, profileImage =  recentChat.otherUserImage), recentChat.chatId)
         }
 
         binding.activeUsersRecyclerView.adapter = activeUsersAdapter
@@ -140,9 +141,10 @@ class ChatFragment : Fragment() {
         }
     }
 
-    private fun startChat(user: User){
+    private fun startChat(user: User, chatId: String){
         val intent = Intent(requireContext(), ChatMessageActivity::class.java).apply {
             putExtra("userId", user.id)
+            putExtra("chatId", chatId)
         }
         startActivity(intent)
     }

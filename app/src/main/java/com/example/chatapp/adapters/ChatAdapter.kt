@@ -36,6 +36,7 @@ class ChatAdapter(
     class ChatViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         val messageText: TextView = itemView.findViewById(R.id.messageText)
         val userAvatar: ImageView = itemView.findViewById(R.id.userAvatar)
+        val senderName: TextView = itemView.findViewById(R.id.senderName)
     }
 
     // Tạo ViewHolder dựa trên kiểu tin nhắn
@@ -54,6 +55,9 @@ class ChatAdapter(
         val message = getAllMessages()[position]
 
         holder.messageText.text = message.text
+
+        holder.senderName.text = message.senderName
+
         Glide.with(holder.itemView.context)
             .load(message.senderAvatarUrl.ifEmpty { R.drawable.user_default_avatar })
             .apply(RequestOptions.circleCropTransform())

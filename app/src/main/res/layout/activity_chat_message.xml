@@ -14,7 +14,6 @@
         android:gravity="center_vertical"
         android:background="?attr/colorPrimary">
         <!-- Nút Back -->
-
         <ImageButton
             android:id="@+id/backButton"
             android:layout_width="40dp"
@@ -31,17 +30,29 @@
             android:layout_height="40dp"
             android:src="@drawable/baseline_account_circle_24"
             android:scaleType="centerCrop"
-            android:layout_marginEnd="8dp" />
+            android:layout_marginEnd="8dp"/>
 
         <!-- Tên người dùng -->
         <TextView
             android:id="@+id/userName"
-            android:layout_width="wrap_content"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
+            android:layout_weight="1"
             android:text="User Name"
             android:textColor="@android:color/white"
             android:textSize="18sp"
-            android:textStyle="bold" />
+            android:textStyle="bold"/>
+
+        <!-- Nút Menu 3 chấm -->
+        <ImageButton
+            android:id="@+id/menuButton"
+            android:layout_width="40dp"
+            android:layout_height="30dp"
+            android:src="@drawable/more_vert_30"
+            android:background="?attr/selectableItemBackground"
+            android:contentDescription="Menu nhóm"
+            android:visibility="gone"/>
+
     </LinearLayout>
 
     <!-- Danh sách tin nhắn -->
