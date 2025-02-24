@@ -8,6 +8,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.EditText
+import android.widget.TextView
 import android.widget.Toast
 import androidx.fragment.app.DialogFragment
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -28,11 +29,14 @@ class CreateGroupDialog(private val users: List<UserWithFriendStatus>,  private 
         val recyclerView = view.findViewById<RecyclerView>(R.id.userListView)
         val btnCreate = view.findViewById<Button>(R.id.btnCreate)
         val btnCancel = view.findViewById<Button>(R.id.btnCancel)
+        val title = view.findViewById<TextView>(R.id.tvGroupTitle)
 
         if(typeChat == "CREATE"){
             btnCreate.text = "Tạo"
+            title.text = "Tạo nhóm chat"
         }else{
             btnCreate.text = "Thêm"
+            title.text = "Thêm thành viên"
         }
         adapter = UserGroupChatAdapter(users) { user, isSelected ->
             if (isSelected) selectedUsers.add(user) else selectedUsers.remove(user)

@@ -33,7 +33,7 @@ class LoginActivity : AppCompatActivity() {
                 startActivity(Intent(this, MainChatActivity::class.java))
                 finish()
             }, { error ->
-                binding.tvError.text = error
+                binding.tvError.text = "Tên đăng nhập hoặc mật khẩu bị sai"
                 binding.tvError.visibility = View.VISIBLE
             })
         }

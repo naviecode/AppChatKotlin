@@ -5,6 +5,16 @@
     android:orientation="vertical"
     android:padding="16dp">
 
+    <TextView
+        android:id="@+id/tvGroupTitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Tạo nhóm chat"
+        android:textSize="18sp"
+        android:textStyle="bold"
+        android:gravity="center"
+        android:paddingBottom="10dp"/>
+
     <!-- Thanh tìm kiếm -->
     <EditText
         android:id="@+id/searchUser"

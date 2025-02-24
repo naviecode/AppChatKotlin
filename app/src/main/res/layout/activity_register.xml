@@ -32,4 +32,12 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="Đăng ký" />
+    <Button
+        android:id="@+id/btnBack"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Quay lại"
+        android:backgroundTint="@android:color/darker_gray"
+        android:textColor="@android:color/white"
+        android:layout_marginTop="10dp" />
 </LinearLayout>

@@ -25,6 +25,7 @@ class RegisterActivity : AppCompatActivity() {
             if (email.isNotEmpty() && password.isNotEmpty() && name.isNotEmpty()) {
                 authManager.register(email, password, name, {
                     startActivity(Intent(this, LoginActivity::class.java))
+                    Toast.makeText(this, "Đăng ký thành công", Toast.LENGTH_SHORT).show()
                     finish()
                 }, { error ->
                     Toast.makeText(this, error, Toast.LENGTH_SHORT).show()
@@ -33,6 +34,10 @@ class RegisterActivity : AppCompatActivity() {
             } else {
                 Toast.makeText(this, "Vui lòng nhập đầy đủ thông tin", Toast.LENGTH_SHORT).show()
             }
+        }
+        binding.btnBack.setOnClickListener {
+            startActivity(Intent(this, LoginActivity::class.java))
+            finish()
         }
     }
 }
